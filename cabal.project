@@ -1,0 +1,3 @@
+packages: kaggle.cabal
+
+write-ghc-environment-files: always
