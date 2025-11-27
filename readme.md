@@ -22,6 +22,7 @@ Run in ghci using:
     import Data.List qualified as List
     import Control.Monad
     import Data.Bifunctor
+    import DataFrame as D
     import Chart
     import Prettychart
     import Chart.Examples
@@ -33,46 +34,15 @@ Run in ghci using:
     (display, quit) <- startChartServer (Just "kaggle")
     disp x = display $ x & set (#markupOptions % #markupHeight) (Just 250) & set (#hudOptions % #frames % ix 1 % #item % #buffer) 0.1
 
-    Configuration is affected by the following files:
-    - cabal.project
-    Build profile: -w ghc-9.12.2 -O1
-    In order, the following will be built (use -v for more details):
-     - kaggle-0.1.0.0 (interactive) (lib) (first run)
-    Preprocessing library for kaggle-0.1.0.0...
-    GHCi, version 9.12.2: https://www.haskell.org/ghc/  :? for help
-    [1 of 1] Compiling Kaggle           ( src/Kaggle.hs, interpreted )
-    src/Kaggle.hs:3:1: warning: [GHC-66111] [-Wunused-imports]
-        The import of ‘DataFrame’ is redundant
-          except perhaps to import instances from ‘DataFrame’
-        To import instances alone, use: import DataFrame()
-      |
-    3 | import DataFrame
-      | ^^^^^^^^^^^^^^^^
-    
-    src/Kaggle.hs:4:1: warning: [GHC-66111] [-Wunused-imports]
-        The import of ‘Chart’ is redundant
-          except perhaps to import instances from ‘Chart’
-        To import instances alone, use: import Chart()
-      |
-    4 | import Chart
-      | ^^^^^^^^^^^^
-    
-    src/Kaggle.hs:6:1: warning: [GHC-66111] [-Wunused-imports]
-        The import of ‘Prettychart’ is redundant
-          except perhaps to import instances from ‘Prettychart’
-        To import instances alone, use: import Prettychart()
-      |
-    6 | import Prettychart
-      | ^^^^^^^^^^^^^^^^^^
-    
-    Ok, one module loaded.
-    Setting phasers to stun... (port 9160) g(hcctir>l -c to quit)
+    Setting phasers to stun... (porgth c9i1>6 0) (ctrl-c to quit)
 
     disp lineExample
 
     True
 
 It&rsquo;s a good chunky first example.
+
+file read:
 
     s <- readFile "other/test.csv"
     length s
@@ -86,4 +56,34 @@ It&rsquo;s a good chunky first example.
 
     23021430
     0.144087667
+
+
+## dataframe readCsv
+
+    (m,df) <- tickIO (D.readCsv "other/test.csv")
+    print $ toSecs m
+    :t df
+
+    0.944859458
+    df :: DataFrame
+
+    describeColumns df
+
+    -----------------------------------------------------------------
+        Column Name      | # Non-null Values | # Null Values |  Type
+    ---------------------|-------------------|---------------|-------
+            Text         |        Int        |      Int      |  Text
+    ---------------------|-------------------|---------------|-------
+    grade_subgrade       | 254569            | 0             | Text
+    loan_purpose         | 254569            | 0             | Text
+    employment_status    | 254569            | 0             | Text
+    education_level      | 254569            | 0             | Text
+    marital_status       | 254569            | 0             | Text
+    gender               | 254569            | 0             | Text
+    interest_rate        | 254569            | 0             | Double
+    loan_amount          | 254569            | 0             | Double
+    credit_score         | 254569            | 0             | Int
+    debt_to_income_ratio | 254569            | 0             | Double
+    annual_income        | 254569            | 0             | Double
+    id                   | 254569            | 0             | Int
 
