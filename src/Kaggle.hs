@@ -48,3 +48,11 @@ boxPlot o v = c
       set #hudOptions defaultHudOptions &
       over (#hudOptions % #axes) (Prelude.drop 1) &
       set #chartTree (named "boxplot" [l1,r2,r3,l4])
+
+
+{-
+hist :: [Double] -> Double -> [Int]
+hist values binCount =
+    let countBin b = length [v | v <- values, v >= b && v < b + binWidth]
+     in map countBin bins
+-}
