@@ -103,7 +103,8 @@ library
     bytestring,
     text,
     prettyprinter,
-
+    vector,
+    vector-algorithms,
   exposed-modules:
     Kaggle
 
