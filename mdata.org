@@ -7,10 +7,10 @@ This repo contains:
 - [[https://github.com/tonyday567/chart-svg][chart-svg]] | dataframe integration and development
 - a live chart build using [[https://github.com/tonyday567/prettychart][prettychart]]
 - some CI infrastructure to begin to measure integration.
+- some pandoc conversion experiments: from org => markdown => ipynb
+  (This is not catered for in nbconvert or jupytext wrt outputs)
 
-* Imports and Pragmas
-
-This snippet represents a current state being developed.
+* Imports
 
 #+begin_src haskell-ng :results output
 :r
@@ -70,18 +70,8 @@ dfTest <- D.readCsv "data/s5e11/test.csv"
 #+end_src
 
 #+RESULTS:
-#+begin_example
-Configuration is affected by the following files:
-- cabal.project
-Build profile: -w ghc-9.12.2 -O1
-In order, the following will be built (use -v for more details):
- - mdata-0.1.0.0 (interactive) (lib) (first run)
-Preprocessing library for mdata-0.1.0.0...
-GHCi, version 9.12.2: https://www.haskell.org/ghc/  :? for help
-[1 of 1] Compiling MData            ( src/MData.hs, interpreted )
-Ok, one module loaded.
-Ok, one module reloaded.
-#+end_example
+: [1 of 1] Compiling MData            ( src/MData.hs, interpreted ) [Flags changed]
+: Ok, one module reloaded.
 
 ** Live charts
 
@@ -93,7 +83,7 @@ disp x = display $ x & set (#markupOptions % #markupHeight) (Just 250) & set (#h
 #+end_src
 
 #+RESULTS:
-: Setting phgahsceir>s  to stun... (port 9160) (ctrl-c to quit)
+: Setting phasers to stun... (port 9160) (gchtcril>- c to quit)
 
 http://localhost:9160/
 
@@ -106,7 +96,7 @@ disp unitExample
 #+RESULTS:
 : True
 
-** piePlot
+** dataframe creation
 
 idiomatic dataframe style?
 
@@ -148,6 +138,7 @@ bd = BarData (fmap pure vs) ["item"] ls
 #+begin_src haskell-ng :file other/bar1.svg :results output graphics file :exports both
 bc = barChart (defaultBarOptions |> set #displayValues False |> set #barStacked Stacked |> set (#barRectStyles % each % #borderSize) 0) bd
 disp bc
+writeChartOptions "other/bar1.svg" bc
 #+end_src
 
 #+RESULTS:
@@ -159,6 +150,7 @@ disp bc
 bc' = Lens.transformOnOf Lens.template Lens.uniplate (over chroma' (*1.5) .> over opac' (*0.6)) bc |> set (#markupOptions % #chartAspect) (FixedAspect 0.4)
 
 disp (bc')
+writeChartOptions "other/bar2.svg" bc'
 #+end_src
 
 #+RESULTS:
@@ -166,7 +158,7 @@ disp (bc')
 
 *** version 3: remove legend and embed labels
 
-#+begin_src haskell-ng
+#+begin_src haskell-ng :file other/bar3.svg :results output graphics file :exports both
 
 acc0 = List.scanl' (+) 0 vs <> [1]
 mids = zipWith (\a0 a1 -> (a0+a1)/2) acc0 (List.drop 1 acc0)
@@ -175,10 +167,12 @@ ct = zipWith (\c (t,a) -> TextChart (defaultTextStyle |> set #size 0.05 |> set #
 bc'' = bc' |> set (#hudOptions % #legends) mempty |> over #chartTree (<> named "labels" ct)
 
 disp (bc'')
+writeChartOptions "other/bar3.svg" bc''
+
 #+end_src
 
 #+RESULTS:
-: True
+[[file:other/bar3.svg]]
 
 
 ** pie secants
@@ -196,7 +190,7 @@ secantPie (Secant o r a0 a1) = singletonPie o (ArcPosition (o N.+ ra a0) (o N.+ 
 
 This is a very common scan for a Column.
 
-#+begin_src haskell-ng :results output
+#+begin_src haskell-ng :file other/pie.svg :results output graphics file :exports both
 acc0 = List.scanl' (+) 0 vs <> [1]
 mids = zipWith (\a0 a1 -> (a0+a1)/2) acc0 (List.drop 1 acc0)
 
@@ -211,21 +205,13 @@ writeChartOptions "other/pie.svg" co
 #+end_src
 
 #+RESULTS:
-: True
+[[file:other/pie.svg]]
 
 
 [[file:other/pie.svg]]
 
 
-* jupytext
-
-#+begin_src sh :results output
-jupytext --set-formats ipynb,md:myst t1.ipynb
-#+end_src
-
-
-
-* build notes
+* kaggle example
 
 ** Initial build
 
