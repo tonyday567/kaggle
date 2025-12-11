@@ -110,5 +110,7 @@ library
     numhask,
     numhask-space,
     harpie,
+    random,
+    mwc-random,
   exposed-modules:
     MData

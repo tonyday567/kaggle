@@ -58,6 +58,11 @@ import Optics.Core hiding ((|>),(<|))
 import Control.Lens qualified as Lens
 import Data.Data.Lens qualified as Lens
 
+-- random variates
+import System.Random.Stateful
+import System.Random.MWC
+import System.Random.MWC.Distributions
+
 -- dev helpers
 import Perf
 import Flow
@@ -66,7 +71,16 @@ import Flow
 import MData
 
 -- example data from https://www.kaggle.com/competitions/playground-series-s5e11
-df <- D.readCsv "data/s5e11/test.csv"
+dfTest <- D.readCsv "data/s5e11/test.csv"
+v = F.col @Double "value"
+df0 = mempty |> D.insert "item" ["person","woman","man","camera","tv"] |> D.insert "value" [20,23.1,31,16,10]
+xs = D.columnAsList @Double "value" df0
+xs' = (/ sum xs) <$> xs
+df = D.insert "prop" xs' df0
+
+-- initialize a random seed
+g <- initialize $ VU.fromList [1,2,3]
+uniformRM (0,1) g :: IO Double
 
 #+end_src
 
@@ -76,31 +90,38 @@ Configuration is affected by the following files:
 - cabal.project
 Build profile: -w ghc-9.12.2 -O1
 In order, the following will be built (use -v for more details):
- - mdata-0.1.0.0 (interactive) (lib) (first run)
+ - mdata-0.1.0.0 (interactive) (lib) (configuration changed)
+Configuring library for mdata-0.1.0.0...
 Preprocessing library for mdata-0.1.0.0...
 GHCi, version 9.12.2: https://www.haskell.org/ghc/  :? for help
 [1 of 1] Compiling MData            ( src/MData.hs, interpreted )
 Ok, one module loaded.
 Ok, one module reloaded.
+0.6412828884280135
 #+end_example
+
+#+begin_src haskell-ng
+D.describeColumns <$> [dfTest, df]
+D.summarize <$> [dfTest, df]
+#+end_src
 
 ** Live charts
 
 This gives you a browser page and live charting capabilities.
 
-#+begin_src haskell-ng :results output
+#+begin_src haskell-ng
 (display, quit) <- startChartServer (Just "mdata")
 disp x = display $ x & set (#markupOptions % #markupHeight) (Just 250) & set (#hudOptions % #frames % ix 1 % #item % #buffer) 0.1
 #+end_src
 
 #+RESULTS:
-: Setting phasers to stugnh.c.i.>  (port 9160) (ctrl-c to quit)
+: Setting phasers to stun... (port 9160) (ctrl-c to quigth)c
 
 http://localhost:9160/
 
 testing, testing; one, two, three
 
-#+begin_src haskell-ng :results output
+#+begin_src haskell-ng
 disp unitExample
 #+end_src
 
@@ -182,7 +203,6 @@ Double | Double
 10.0   | 120.1
 #+end_example
 
-
 ** stacked bar
 
 *** version 1: single stacked vertical bar chart
@@ -236,7 +256,6 @@ writeChartOptions "other/bar3.svg" bc''
 #+RESULTS:
 [[file:other/bar3.svg]]
 
-
 ** pie secants
 
 Pie chart convention starts at the y-axis and lays out secant slices clockwise.
@@ -275,7 +294,17 @@ writeChartOptions "other/pie.svg" co
 
 [[file:other/pie.svg]]
 
-* kaggle example
+
+*** piePlot
+
+#+begin_src haskell-ng :results output
+ls = T.pack <$> D.columnAsList @String "item" df
+vs = D.columnAsList @Double "prop" df
+disp $ piePlot defaultPiePlotOptions (zip ls vs)
+#+end_src
+
+
+* dfTest
 ** dataframe check
 
 #+begin_src haskell-ng :results output
@@ -304,10 +333,11 @@ annual_income        | 254569            | 0             | Double
 id                   | 254569            | 0             | Int
 #+end_example
 
-* chart dev
+* df
 
 ** piePlot
 
+*** workings
 Pie chart convention starts at the y-axis and lays out secant slices clockwise.
 
 `ra` maps (0,1) (the proportional pie slice) into a point on a unit circle (by this convetion).
@@ -345,7 +375,312 @@ writeChartOptions "other/pie.svg" co
 
 [[file:other/pie.svg]]
 
+#+begin_src haskell-ng :results output
+ls = T.pack <$> D.columnAsList @String "item" df
+vs = D.columnAsList @Double "prop" df
+disp $ piePlot (defaultPiePlotOptions |> over (#secants % each % #pathStyle % #color % lightness') (\x -> min (1 - x) 0.4) |> over (#secants % each % #textStyle % #color % lightness') (\x -> max (1 - x) 0.6)) (zip ls vs)
+#+end_src
 
+#+RESULTS:
+: True
+
+#+begin_src haskell-ng :results output
+:t defaultPiePlotOptions |> over (#secants % each % #pathStyle % #color % lightness') (\x -> 1 - x)
+#+end_src
+
+#+RESULTS:
+: defaultPiePlotOptions |> over (#secants % each % #pathStyle % #color % lightness') (\x -> 1 - x)
+:   :: PiePlotOptions
+
+*** piePlot
+
+#+begin_src haskell-ng :results output
+ls = T.pack <$> D.columnAsList @String "item" df
+vs = D.columnAsList @Double "prop" df
+disp ((piePlot (defaultPiePlotOptions |> over (#secants % each % #textStyle % #color % lightness') (min 0.4)) (zip ls vs)) |> set #hudOptions defaultHudOptions)
+#+end_src
+
+#+RESULTS:
+: True
+
+**** dark version test
+
+#+begin_src haskell-ng :results output
+disp $ piePlot (defaultPiePlotOptions |> over (#secants % each % #pathStyle % #color % lightness') (\x -> min (1 - x) 0.4) |> over (#secants % each % #textStyle % #color % lightness') (\x -> max (1 - x) 0.6)) (zip ls vs)
+#+end_src
+
+
+*** littleuns
+
+#+begin_src haskell-ng :results output
+p = [0..4]
+cs = fmap (\x -> piePlot (switchOffs x defaultPiePlotOptions) (zip ls vs)) (List.subsequences p)
+cts = cs |> fmap (view #chartTree)
+-- littleuns
+cts' = projectChartTree (fmap (0.1*) one) <$> cts
+
+-- random points
+xs <- replicateM (length cs) (uniformDouble01M g) :: IO [Double]
+ys <- replicateM (length cs) (uniformDouble01M g) :: IO [Double]
+ps = zipWith Point xs ys
+
+-- littleuns at random points
+cts'' = zipWith (\p ct -> over charts' (fmap (moveChart p)) ct) ps cts'
+
+-- littleuns with no text at random points
+noTextCt ct = mempty |> set #chartTree ct |> noText |> view #chartTree
+ct1 = noTextCt <$> cts''
+
+bl = named "blank" [BlankChart defaultStyle [Rect 0 1 0 1]]
+
+ct = ct1!!2 <> bl
+
+disp (mempty |> set #hudOptions defaultHudOptions |> set (#markupOptions % #chartAspect) ChartAspect |> set #chartTree (mconcat $ bl:ct1))
+
+#+end_src
+
+#+RESULTS:
+: True
+
+
+#+begin_src haskell-ng :results output
+view styleBox' bl
+view styleBox' (cts'!!2)
+view box' (cts'!!2)
+view styleBox' (cts'!!1 <> bl)
+#+end_src
+
+#+RESULTS:
+: Just Rect (-0.5) 0.5 (-0.5) 0.5
+: Just Rect (-9.302888887111575e-2) 9.196439192085827e-2 (-1.7888660580301686e-2) 4.317390536876205e-2
+: Just Rect (-5.0e-3) 5.000000000000001e-3 (-5.0e-3) 5.0e-3
+: Just Rect (-0.5) 0.5 (-0.5) 0.5
+
+#+begin_src haskell-ng :results output
+#+end_src
+
+#+RESULTS:
+
+#+begin_src haskell-ng :results output
+cte = cts''!!2
+#+end_src
+
+#+RESULTS:
+
+**** cte traps the bug
+
+#+begin_src haskell-ng :results output
+:t cte
+#+end_src
+
+#+RESULTS:
+: <interactive>:1:1: error: [GHC-88464]
+:     Variable not in scope: cte
+:     Suggested fix:
+:       Perhaps use one of these:
+:         record field of Transform ‘N.te’ (imported from NumHask.Space),
+:         ‘cts’ (line 88)
+
+#+begin_src haskell-ng :results output
+styleBoxes . pure <$> toListOf chart' cte
+#+end_src
+
+#+RESULTS:
+: [Just Rect 0.5540403682349773 0.5585866647108377 0.3992886816874476 0.40407216147498104,Just Rect 0.5541192784636682 0.5589014918924664 0.39466437418205963 0.40048374194960074,Just Rect 0.5490044304949856 0.5557983638839764 0.3941060686143298 0.39888954840186325,Just Rect 0.5489014918924666 0.5536837053212649 0.39890461186999354 0.4030688579687091,Just Rect 0.5510176405680807 0.5538261260732309 0.39932258882679633 0.40410606861432985,Just Rect 0.46586588381332483 0.6458658838133248 0.38680527403220905 0.44180527403220904,Just Rect 0.4819706270149982 0.6319706270149982 0.38276170581992003 0.43776170581992,Just Rect 0.5071884027172463 0.5971884027172464 0.3812174080340281 0.4362174080340281,Just Rect 0.4608726030213508 0.6408726030213507 0.38552421454423796 0.44052421454423796,Just Rect 0.5228664935488754 0.5828664935488754 0.38727997398309183 0.4422799739830918]
+
+#+begin_src haskell-ng :results output
+styleBoxes $ pure ((toListOf chart' cte)!!5)
+#+end_src
+
+#+RESULTS:
+: Just *** Exception: Prelude.foldr1: empty list
+:
+: HasCallStack backtrace:
+:   error, called at libraries/ghc-internal/src/GHC/Internal/List.hs:2036:3 in ghc-internal:GHC.Internal.List
+:   errorEmptyList, called at libraries/ghc-internal/src/GHC/Internal/List.hs:705:30 in ghc-internal:GHC.Internal.List
+:   foldr1, called at libraries/ghc-internal/src/GHC/Internal/Data/Foldable.hs:699:15 in ghc-internal:GHC.Internal.Data.Foldable
+
+#+begin_src haskell-ng :results output
+:set -Wno-incomplete-uni-patterns
+ce = (toListOf chart' cte)!!5
+-- styleBoxes [ce]
+ce |> view #chartStyle |> view #borderSize
+(Just pd) = view (#chartData % pathData') ce
+
+-- ok
+-- pathBox (pointPath (pd!!0)) (pd!!1)
+
+-- not ok
+-- pathBox (pointPath (pd!!1)) (pd!!2)
+
+start' = (pointPath (pd!!1))
+(ArcP i p) = pd!!2
+start'
+p
+i
+-- not ok
+-- arcBox (ArcPosition start' p i)
+
+#+end_src
+
+#+RESULTS:
+: 0.0
+: Point 0.5538999439597198 0.4036394034590842
+: Point 0.5538999439597198 0.4036394034590842
+: ArcInfo {radii = Point 4.782213428798307e-3 4.783479787533438e-3, phi = 0.0, large = False, clockwise = True}
+
+#+begin_src haskell-ng :results output
+:t toListOf chart' (cts''!!2)
+anArcZero ct = arcZero . mconcat . maybeToList . view (#chartData % pathData') <$> (toListOf chart' ct)
+#+end_src
+
+#+RESULTS:
+: toListOf chart' (cts''!!2) :: [Chart]
+
+
+#+begin_src haskell-ng :results output
+anArcZero (cts''!!2)
+anArcZero (cts'!!2)
+#+end_src
+
+#+RESULTS:
+: [False,False,False,False,False,True,False,False,False,False,False]
+: [False,False,False,False,False,False,False,False,False,False,False]
+: [False,False,False,False,False,False,False,False,False,False,False]
+
+
+#+begin_src haskell-ng :results output
+anArcZero (cts''!!2)
+
+pd5 ct = (mconcat . maybeToList . view (#chartData % pathData') <$> (toListOf chart' ct)) !! 5
+pd5 (cts''!!2)
+pd5 (cts'!!2)
+pd5 (cts!!2)
+:t pd5 (cts!!2)
+pathBoxes (pd5 (cts!!2))
+pathBoxes (pd5 (cts'!!2))
+pathBoxes (pd5 (cts''!!2))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+[False,False,False,False,False,True,False,False,False,False,False]
+[StartP Point 0.5538999439597198 0.3988559236715508,LineP Point 0.5538999439597198 0.4036394034590842,ArcP (ArcInfo {radii = Point 4.782213428798307e-3 4.783479787533438e-3, phi = 0.0, large = False, clockwise = True}) Point 0.5538999439597198 0.4036394034590842,LineP Point 0.5538999439597198 0.3988559236715508]
+[StartP Point (-1.5479327467645548e-6) (-2.501449427789928e-4),LineP Point (-1.5479327467567486e-6) 4.533334844754444e-3,ArcP (ArcInfo {radii = Point 4.782213428798307e-3 4.783479787533438e-3, phi = 0.0, large = False, clockwise = True}) Point (-1.5479327467662896e-6) 4.533334844754444e-3,LineP Point (-1.5479327467645548e-6) (-2.501449427789928e-4)]
+[StartP Point 1.5308084989341915e-17 (-5.0e-2),LineP Point 1.6079679045174894e-15 0.95,ArcP (ArcInfo {radii = Point 1.0 1.0, phi = 0.0, large = False, clockwise = True}) Point (-4.133182947122317e-16) 0.95,LineP Point 1.5308084989341915e-17 (-5.0e-2)]
+pd5 (cts!!2) :: [PathData Double]
+Just Rect (-4.133182947122317e-16) 1.6079679045174894e-15 (-5.0e-2) 0.95
+Just Rect (-1.5479327467662896e-6) (-1.5479327467567486e-6) (-2.501449427789928e-4) 4.533334844754444e-3
+Just *** Exception: Prelude.foldr1: empty list
+
+HasCallStack backtrace:
+  error, called at libraries/ghc-internal/src/GHC/Internal/List.hs:2036:3 in ghc-internal:GHC.Internal.List
+  errorEmptyList, called at libraries/ghc-internal/src/GHC/Internal/List.hs:705:30 in ghc-internal:GHC.Internal.List
+  foldr1, called at libraries/ghc-internal/src/GHC/Internal/Data/Foldable.hs:699:15 in ghc-internal:GHC.Internal.Data.Foldable
+#+end_example
+
+
+#+begin_src haskell-ng :results output
+(List.subsequences p) !! 2
+pds = view #chartData <$> toListOf chart' (cts'' !! 2)
+
+:t pds
+length pds
+
+-- (PathData p') = pds !! 5
+-- pds !! 5
+-- pathBoxes . fromMaybe [] . view pathData' <$> pds
+#+end_src
+
+#+RESULTS:
+: [1]
+: pds :: [ChartData]
+: 11
+
+
+#+begin_src haskell-ng :results output
+pds |> fmap (view pathData')
+#+end_src
+
+#+RESULTS:
+: [Just [StartP Point 0.5550125026325524 0.40056697319927215,LineP Point 0.5550125026325524 0.4388348114995396,ArcP (ArcInfo {radii = Point 3.825770743038646e-2 3.8267838300267504e-2, phi = 0.0, large = False, clockwise = True}) Point 0.591382874439436 0.4124380657035198,LineP Point 0.5550125026325524 0.40056697319927215],Just [StartP Point 0.5556437844620801 0.39825636279224985,LineP Point 0.5920141562689637 0.4101274552964975,ArcP (ArcInfo {radii = Point 3.825770743038646e-2 3.8267838300267504e-2, phi = 0.0, large = False, clockwise = True}) Point 0.5718091674232598 0.3635725131561687,LineP Point 0.5556437844620801 0.39825636279224985],Just [StartP Point 0.5529110848633647 0.3973739069145973,LineP Point 0.5690764678245445 0.3626900572785161,ArcP (ArcInfo {radii = Point 3.825770743038646e-2 3.8267838300267504e-2, phi = 0.0, large = False, clockwise = True}) Point 0.5147250007126191 0.39503338236809127,LineP Point 0.5529110848633647 0.3973739069145973],Just [StartP Point 0.552159199322853 0.39983493920614577,LineP Point 0.5139731151721073 0.39749441465963975,ArcP (ArcInfo {radii = Point 3.825770743038646e-2 3.8267838300267504e-2, phi = 0.0, large = False, clockwise = True}) Point 0.5296913152816525 0.43080838344936395,LineP Point 0.552159199322853 0.39983493920614577],Just [StartP Point 0.5532985653385813 0.4008382303140623,LineP Point 0.5308306812973809 0.4318116745572805,ArcP (ArcInfo {radii = Point 3.825770743038646e-2 3.8267838300267504e-2, phi = 0.0, large = False, clockwise = True}) Point 0.5532985653385813 0.43910606861432977,LineP Point 0.5532985653385813 0.4008382303140623],Just [StartP Point 0.5538891084304924 0.39710490907209783,LineP Point 0.5538891084304924 0.43537274737236537,ArcP (ArcInfo {radii = Point 3.825770743038646e-2 3.8267838300267504e-2, phi = 0.0, large = False, clockwise = True}) Point 0.5538891084304924 0.43537274737236537,LineP Point 0.5538891084304924 0.39710490907209783],Nothing,Nothing,Nothing,Nothing,Nothing]
+
+#+begin_src haskell-ng :results output
+ungrid vs
+#+end_src
+
+#+RESULTS:
+: [Range 0.0 0.1998001998001998,Range 0.1998001998001998 0.43056943056943064,Range 0.43056943056943064 0.7402597402597404,Range 0.7402597402597404 0.9000999000999003,Range 0.9000999000999003 1.0000000000000002]
+
+
+
+
+**** cts!!2 is fine
+
+#+begin_src haskell-ng :results output
+disp (mempty |> set #chartTree (cts !! 2) |> set (#markupOptions % #chartAspect) (FixedAspect 1))
+#+end_src
+
+#+RESULTS:
+: True
+
+#+begin_src haskell-ng :results output
+:t cts!!2
+styleBoxes $ toListOf chart' (cts!!2)
+styleBoxes $ toListOf chart' (cts'!!2)
+-- styleBoxes $ toListOf chart' (cts''!!2)
+
+:t cts'!!2
+ps!!2
+
+styleBoxes $ toListOf chart' (projectChartTree (fmap (0.08*) one) (cts'!!2))
+
+#+end_src
+
+#+RESULTS:
+: cts!!2 :: ChartTree
+: Just Rect (-1.0452172705535783) 1.0458646413871104 (-1.0429706548776347) 1.0475576726511449
+: Just Rect (-0.11423111096892606) 0.10571513536686623 (-4.0e-2) 6.539124295009635e-2
+: cts'!!2 :: ChartTree
+: Point 0.5539014918924665 0.3991060686143298
+: Just Rect (-9.72647289055902e-2) 9.72647289055902e-2 (-4.217865744076334e-2) 4.9636946007789014e-2
+
+#+begin_src haskell-ng :results output
+view styleBox' (cts'!!2)
+
+cs
+
+#+end_src
+
+#+RESULTS:
+: Just Rect (-0.11423111096892606) 0.10571513536686623 (-4.0e-2) 6.539124295009635e-2
+
+
+**** cts'!!2 moves slightly
+
+#+begin_src haskell-ng :results output
+disp (mempty |> set #chartTree (cts' !! 2) |> set (#markupOptions % #chartAspect) (FixedAspect 1))
+#+end_src
+
+#+RESULTS:
+: True
+
+
+**** cts''!!2
+
+#+begin_src haskell-ng :results output
+disp (mempty |> set #chartTree (cts'' !! 2) |> set (#markupOptions % #chartAspect) (FixedAspect 1))
+#+end_src
+
+#+RESULTS:
+: True
+
+ #+begin_src haskell-ng :results output
+ disp unitExample
+ #+end_src
+
+ #+RESULTS:
+ : True
 
 ** histPlot example
 

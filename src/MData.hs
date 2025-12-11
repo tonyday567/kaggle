@@ -98,12 +98,23 @@ defaultSecantOptions = SecantOptions (defaultPathStyle |> set #borderSize zero) 
 
 data PiePlotOptions =
   PiePlotOptions {
-    secants :: [SecantOptions],
-    title :: Maybe TitleOptions
+    secants :: [SecantOptions]
   } deriving (Generic, Show, Eq)
 
 defaultPiePlotOptions :: PiePlotOptions
-defaultPiePlotOptions = PiePlotOptions (fmap (\c -> defaultSecantOptions |> set (#pathStyle % #color) (paletteO c 0.3) |> set (#pathStyle % #borderColor) (paletteO c 1) |> set (#pathStyle % #color) (palette c |> over lightness' (*0.6))) [0..8]) (Just (defaultTitleOptions mempty |> set #place PlaceBottom |> set (#style % #size) 0.08 |> set (#style % #color) (paletteO 2 1)))
+defaultPiePlotOptions = PiePlotOptions (fmap (\c -> defaultSecantOptions |> set (#pathStyle % #color) (paletteO c 0.3) |> set (#pathStyle % #borderColor) (paletteO c 1) |> set (#textStyle % #color) (palette c |> over lightness' (*0.6))) [0..8])
+
+switchOff :: Int -> PiePlotOptions -> PiePlotOptions
+switchOff x o = o |> over (#secants % each % #textStyle % #color % lightness') (min 0.4) |> over (#secants % ix x % #pathStyle % #color % opac') (const 0.05) |> over (#secants % ix x % #textStyle % #color % opac') (const 0.1)
+
+switchOffs :: [Int] -> PiePlotOptions -> PiePlotOptions
+switchOffs xs o = foldl' (flip switchOff) o xs
+
+noText :: ChartOptions -> ChartOptions
+noText co = over (#chartTree % charts') (filter (\c -> view #chartData c |> isTextData |> not)) co
+  where
+    isTextData (TextData _) = True
+    isTextData _ = False
 
 -- | piePlot
 --
@@ -115,7 +126,7 @@ piePlot o x = co
   where
     vs = snd <$> x
     ls = fst <$> x
-    rs = ungrid (vs <> [one])
+    rs = ungrid vs
     cs = zipWith (\so r -> PathChart (view #pathStyle so) (secantPie (Secant ((view #offset so) N.*| ra (mid r)) one (N.lower r) (N.upper r)))) (view #secants o) rs
     ct = zipWith3 (\so m l -> TextChart (view #textStyle so) [(l, (view #textOffset so) N.*| ra m)]) (view #secants o) (fmap N.mid rs) ls
     co = (mempty :: ChartOptions) & set (#markupOptions % #chartAspect) ChartAspect & set #chartTree ((cs <> ct) |> named "piePlot")
@@ -144,3 +155,8 @@ data HistPlotOptions =
 defaultHistPlotOptions :: HistPlotOptions
 defaultHistPlotOptions = HistPlotOptions (defaultRectStyle |> set #color (paletteO 2 0.2) |> set #borderColor (paletteO 2 1)) 10 (defaultTitleOptions mempty |> set #place PlaceBottom |> set (#style % #size) 0.08 |> set (#style % #color) (paletteO 2 1))
 
+arcZero :: [PathData Double] -> Bool
+arcZero [] = False
+arcZero [_] = False
+arcZero (x : y@(ArcP _ p1) : xs) = pointPath x == p1 || arcZero (y:xs)
+arcZero (_ : y : xs) = arcZero (y:xs)
