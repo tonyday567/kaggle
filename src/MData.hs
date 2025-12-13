@@ -104,11 +104,11 @@ data PiePlotOptions =
 defaultPiePlotOptions :: PiePlotOptions
 defaultPiePlotOptions = PiePlotOptions (fmap (\c -> defaultSecantOptions |> set (#pathStyle % #color) (paletteO c 0.3) |> set (#pathStyle % #borderColor) (paletteO c 1) |> set (#textStyle % #color) (palette c |> over lightness' (*0.6))) [0..8])
 
-switchOff :: Int -> PiePlotOptions -> PiePlotOptions
-switchOff x o = o |> over (#secants % each % #textStyle % #color % lightness') (min 0.4) |> over (#secants % ix x % #pathStyle % #color % opac') (const 0.05) |> over (#secants % ix x % #textStyle % #color % opac') (const 0.1)
+switchOff :: Int -> SecantOptions -> PiePlotOptions -> PiePlotOptions
+switchOff x so o = o |> over (#secants % each % #textStyle % #color % lightness') (min 0.4) |> set (#secants % ix x) so
 
-switchOffs :: [Int] -> PiePlotOptions -> PiePlotOptions
-switchOffs xs o = foldl' (flip switchOff) o xs
+switchOffs :: [Int] -> SecantOptions -> PiePlotOptions -> PiePlotOptions
+switchOffs xs so o = foldl' (\acc x -> switchOff x so acc) o xs
 
 noText :: ChartOptions -> ChartOptions
 noText co = over (#chartTree % charts') (filter (\c -> view #chartData c |> isTextData |> not)) co
