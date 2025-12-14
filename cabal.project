@@ -1,3 +1,3 @@
-packages: mdata.cabal
+packages: dataframe-plot.cabal
 
 write-ghc-environment-files: always

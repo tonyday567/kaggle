@@ -1,5 +1,5 @@
 cabal-version:      3.14
-name:               mdata
+name:               dataframe-plot
 version:            0.1.0.0
 license: BSD-3-Clause
 author:             Tony Day
@@ -113,4 +113,4 @@ library
     random,
     mwc-random,
   exposed-modules:
-    MData
+    DataFrame.Plot

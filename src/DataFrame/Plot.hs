@@ -5,8 +5,8 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
 
--- | A place to put functions until they get dumped or transferred elsewhere
-module MData where
+-- | Interface layer for dataframe chart-svg.
+module DataFrame.Plot where
 
 import Data.List qualified as List
 import Chart
@@ -25,6 +25,10 @@ import NumHask.Space qualified as N
 import NumHask qualified as N
 import Flow
 import Data.Maybe
+
+
+
+
 
 data BoxPlotOptions =
   BoxPlotOptions {
